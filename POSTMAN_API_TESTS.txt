@@ -1,0 +1,508 @@
+{
+  "title": "Gamer Review API - Postman Raw JSON Bodies",
+  "format": "Copy only the value of each request.body into Postman Body > raw > JSON.",
+  "baseUrl": "http://localhost:5000/api",
+  "postmanVariables": {
+    "testEmail": "replace-with-test-mailbox@example.com",
+    "testUsername": "postman_test_user",
+    "testPassword": "ReplaceWithStrongTestPassword!2026",
+    "newTestPassword": "ReplaceWithAnotherStrongPassword!2026",
+    "verifyToken": "paste-token-from-verification-email",
+    "resetToken": "paste-token-from-password-reset-email",
+    "gameId": "replace-with-24-character-game-object-id",
+    "reviewId": "replace-with-24-character-review-object-id",
+    "gameCoverUrl": "paste-cloudinary-secure-url",
+    "gameCoverPublicId": "paste-cloudinary-public-id",
+    "reviewImageUrl": "paste-cloudinary-secure-url",
+    "reviewImagePublicId": "paste-cloudinary-public-id"
+  },
+  "requests": [
+    {
+      "name": "Register",
+      "method": "POST",
+      "path": "/auth/register",
+      "requires": "SMTP configured; use a new test email and username.",
+      "body": {
+        "displayName": "Postman Tester",
+        "username": "{{testUsername}}",
+        "email": "{{testEmail}}",
+        "password": "{{testPassword}}",
+        "confirmPassword": "{{testPassword}}"
+      }
+    },
+    {
+      "name": "Register - invalid fields (expect 422)",
+      "method": "POST",
+      "path": "/auth/register",
+      "body": {
+        "displayName": "",
+        "username": "x",
+        "email": "not-an-email",
+        "password": "weak",
+        "confirmPassword": "different"
+      }
+    },
+    {
+      "name": "Verify email",
+      "method": "POST",
+      "path": "/auth/verify-email",
+      "requires": "Copy the one-time token from the verification email.",
+      "body": {
+        "token": "{{verifyToken}}"
+      }
+    },
+    {
+      "name": "Resend verification",
+      "method": "POST",
+      "path": "/auth/resend-verification",
+      "requires": "SMTP configured; rate-limited with a resend cooldown.",
+      "body": {
+        "email": "{{testEmail}}"
+      }
+    },
+    {
+      "name": "Login with email",
+      "method": "POST",
+      "path": "/auth/login",
+      "body": {
+        "identifier": "{{testEmail}}",
+        "password": "{{testPassword}}"
+      }
+    },
+    {
+      "name": "Login with username",
+      "method": "POST",
+      "path": "/auth/login",
+      "body": {
+        "identifier": "{{testUsername}}",
+        "password": "{{testPassword}}"
+      }
+    },
+    {
+      "name": "Login - invalid credentials",
+      "method": "POST",
+      "path": "/auth/login",
+      "body": {
+        "identifier": "{{testEmail}}",
+        "password": "IncorrectPassword!2026"
+      }
+    },
+    {
+      "name": "Forgot password",
+      "method": "POST",
+      "path": "/auth/forgot-password",
+      "requires": "SMTP configured; response is generic whether the email exists or not.",
+      "body": {
+        "email": "{{testEmail}}"
+      }
+    },
+    {
+      "name": "Reset password",
+      "method": "POST",
+      "path": "/auth/reset-password",
+      "requires": "Copy the one-time token from the password-reset email.",
+      "body": {
+        "token": "{{resetToken}}",
+        "newPassword": "{{newTestPassword}}",
+        "confirmPassword": "{{newTestPassword}}"
+      }
+    },
+    {
+      "name": "Change password",
+      "method": "PATCH",
+      "path": "/auth/change-password",
+      "requires": "Authenticated user; use X-CSRF-Token header.",
+      "body": {
+        "currentPassword": "{{testPassword}}",
+        "newPassword": "{{newTestPassword}}",
+        "confirmPassword": "{{newTestPassword}}"
+      }
+    },
+    {
+      "name": "Create game submission",
+      "method": "POST",
+      "path": "/games",
+      "requires": "Authenticated user and an image previously uploaded to /uploads/game-cover. New submissions are pending.",
+      "body": {
+        "title": "Postman Test Game 2026",
+        "coverImageUrl": "{{gameCoverUrl}}",
+        "coverPublicId": "{{gameCoverPublicId}}",
+        "description": "Disposable game record created to test the Gamer Review API.",
+        "genres": [
+          "RPG"
+        ],
+        "platforms": [
+          "PC"
+        ],
+        "releaseDate": "2026-01-15",
+        "developer": "Postman Test Studio",
+        "publisher": "Postman Test Publisher",
+        "officialWebsite": "https://example.com"
+      }
+    },
+    {
+      "name": "Moderate game - approve",
+      "method": "PATCH",
+      "path": "/games/{{gameId}}/moderate",
+      "requires": "Authenticated administrator; gameId should be a pending game.",
+      "body": {
+        "approvalStatus": "approved"
+      }
+    },
+    {
+      "name": "Moderate game - reject",
+      "method": "PATCH",
+      "path": "/games/{{gameId}}/moderate",
+      "requires": "Authenticated administrator; use a separate disposable game.",
+      "body": {
+        "approvalStatus": "rejected"
+      }
+    },
+    {
+      "name": "Moderate game - invalid status (expect 422)",
+      "method": "PATCH",
+      "path": "/games/{{gameId}}/moderate",
+      "body": {
+        "approvalStatus": "published"
+      }
+    },
+    {
+      "name": "Update game",
+      "method": "PATCH",
+      "path": "/games/{{gameId}}",
+      "requires": "Authenticated administrator; use X-CSRF-Token header.",
+      "body": {
+        "description": "Updated by the Postman API test.",
+        "genres": [
+          "RPG",
+          "Adventure"
+        ]
+      }
+    },
+    {
+      "name": "Create review",
+      "method": "POST",
+      "path": "/games/{{gameId}}/reviews",
+      "requires": "Authenticated user, approved game, and optional images previously uploaded to /uploads/review-images.",
+      "body": {
+        "title": "Postman review",
+        "content": "A disposable review for API testing.",
+        "rating": 8,
+        "pros": [
+          "Good gameplay"
+        ],
+        "cons": [
+          "Test content only"
+        ],
+        "tags": [
+          "Gameplay"
+        ],
+        "images": [
+          {
+            "url": "{{reviewImageUrl}}",
+            "publicId": "{{reviewImagePublicId}}"
+          }
+        ],
+        "containsSpoilers": false
+      }
+    },
+    {
+      "name": "Create review without images",
+      "method": "POST",
+      "path": "/games/{{gameId}}/reviews",
+      "body": {
+        "title": "Postman review without images",
+        "content": "A disposable review for testing without an image upload.",
+        "rating": 8,
+        "pros": [
+          "Simple test"
+        ],
+        "cons": [],
+        "tags": [
+          "Gameplay"
+        ],
+        "containsSpoilers": false
+      }
+    },
+    {
+      "name": "Create review - invalid rating (expect 422)",
+      "method": "POST",
+      "path": "/games/{{gameId}}/reviews",
+      "body": {
+        "title": "Invalid rating test",
+        "content": "Rating must be an integer between 1 and 10.",
+        "rating": 11,
+        "containsSpoilers": false
+      }
+    },
+    {
+      "name": "Update own review",
+      "method": "PATCH",
+      "path": "/reviews/{{reviewId}}",
+      "requires": "Must be the author of reviewId; use X-CSRF-Token header.",
+      "body": {
+        "title": "Updated Postman review",
+        "content": "Updated disposable review text.",
+        "rating": 9,
+        "tags": [
+          "Gameplay",
+          "Story"
+        ],
+        "containsSpoilers": false
+      }
+    },
+    {
+      "name": "Like review vote",
+      "method": "POST",
+      "path": "/reviews/{{reviewId}}/vote",
+      "requires": "Authenticated user cannot vote on their own review; use X-CSRF-Token header.",
+      "body": {
+        "type": "like"
+      }
+    },
+    {
+      "name": "Helpful review vote",
+      "method": "POST",
+      "path": "/reviews/{{reviewId}}/vote",
+      "requires": "Use a different authenticated user from the review author; use X-CSRF-Token header.",
+      "body": {
+        "type": "helpful"
+      }
+    },
+    {
+      "name": "Not helpful review vote",
+      "method": "POST",
+      "path": "/reviews/{{reviewId}}/vote",
+      "requires": "Replaces the prior Helpful/Not Helpful vote; Like remains separate.",
+      "body": {
+        "type": "notHelpful"
+      }
+    },
+    {
+      "name": "Review vote - invalid type (expect 422)",
+      "method": "POST",
+      "path": "/reviews/{{reviewId}}/vote",
+      "body": {
+        "type": "star"
+      }
+    },
+    {
+      "name": "Update my profile",
+      "method": "PATCH",
+      "path": "/users/me",
+      "requires": "Authenticated user; use X-CSRF-Token header.",
+      "body": {
+        "displayName": "Postman Updated",
+        "bio": "Disposable API test profile.",
+        "favoriteTags": [
+          "RPG",
+          "Indie",
+          "Story-Driven"
+        ]
+      }
+    },
+    {
+      "name": "Update username",
+      "method": "PATCH",
+      "path": "/users/me",
+      "body": {
+        "username": "{{testUsername}}"
+      }
+    },
+    {
+      "name": "Profile update - forbidden role (expect 422)",
+      "method": "PATCH",
+      "path": "/users/me",
+      "body": {
+        "role": "admin"
+      }
+    }
+  ],
+  "requestsWithoutBody": [
+    {
+      "name": "Get CSRF token",
+      "method": "GET",
+      "path": "/auth/csrf",
+      "note": "Run first. Save data.csrfToken, then send it as X-CSRF-Token for unsafe requests."
+    },
+    {
+      "name": "Get current user",
+      "method": "GET",
+      "path": "/auth/me",
+      "requires": "Login first; Postman must retain gr_access cookie."
+    },
+    {
+      "name": "Refresh session",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "requires": "Retain gr_refresh cookie and send X-CSRF-Token."
+    },
+    {
+      "name": "Logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "requires": "Send X-CSRF-Token; clears cookies and revokes refresh session."
+    },
+    {
+      "name": "List games",
+      "method": "GET",
+      "path": "/games?search=elden&genre=RPG&platform=PC&minRating=0&sort=highestRated&page=1&limit=12"
+    },
+    {
+      "name": "Featured games",
+      "method": "GET",
+      "path": "/games/featured"
+    },
+    {
+      "name": "Trending games",
+      "method": "GET",
+      "path": "/games/trending"
+    },
+    {
+      "name": "Top-rated games",
+      "method": "GET",
+      "path": "/games/top-rated"
+    },
+    {
+      "name": "New releases",
+      "method": "GET",
+      "path": "/games/new-releases"
+    },
+    {
+      "name": "Pending games (admin)",
+      "method": "GET",
+      "path": "/games/pending?page=1&limit=20",
+      "requires": "Authenticated administrator."
+    },
+    {
+      "name": "Get game by ID or slug",
+      "method": "GET",
+      "path": "/games/{{gameId}}"
+    },
+    {
+      "name": "List reviews",
+      "method": "GET",
+      "path": "/reviews?search=Postman&gameId={{gameId}}&genre=RPG&platform=PC&tag=Gameplay&minRating=1&maxRating=10&sort=mostRecent&page=1&limit=12"
+    },
+    {
+      "name": "Recent reviews",
+      "method": "GET",
+      "path": "/reviews/recent"
+    },
+    {
+      "name": "Get review by ID",
+      "method": "GET",
+      "path": "/reviews/{{reviewId}}"
+    },
+    {
+      "name": "Get reviews by game",
+      "method": "GET",
+      "path": "/games/{{gameId}}/reviews"
+    },
+    {
+      "name": "Get public profile",
+      "method": "GET",
+      "path": "/users/{{testUsername}}"
+    },
+    {
+      "name": "Get profile reviews",
+      "method": "GET",
+      "path": "/users/{{testUsername}}/reviews"
+    },
+    {
+      "name": "Get public favorites",
+      "method": "GET",
+      "path": "/users/{{testUsername}}/favorites"
+    },
+    {
+      "name": "Get my wishlist",
+      "method": "GET",
+      "path": "/users/me/wishlist?page=1&limit=24",
+      "requires": "Authenticated user."
+    },
+    {
+      "name": "Get my favorites",
+      "method": "GET",
+      "path": "/users/me/favorites?page=1&limit=24",
+      "requires": "Authenticated user."
+    },
+    {
+      "name": "Add game to wishlist",
+      "method": "POST",
+      "path": "/users/me/wishlist/{{gameId}}",
+      "requires": "Authenticated user; no request body; use X-CSRF-Token."
+    },
+    {
+      "name": "Add game to favorites",
+      "method": "POST",
+      "path": "/users/me/favorites/{{gameId}}",
+      "requires": "Authenticated user; no request body; use X-CSRF-Token."
+    },
+    {
+      "name": "Remove game from wishlist",
+      "method": "DELETE",
+      "path": "/users/me/wishlist/{{gameId}}",
+      "requires": "Authenticated user; use X-CSRF-Token."
+    },
+    {
+      "name": "Remove game from favorites",
+      "method": "DELETE",
+      "path": "/users/me/favorites/{{gameId}}",
+      "requires": "Authenticated user; use X-CSRF-Token."
+    },
+    {
+      "name": "Unlike review",
+      "method": "DELETE",
+      "path": "/reviews/{{reviewId}}/like",
+      "requires": "Authenticated user; use X-CSRF-Token."
+    },
+    {
+      "name": "Delete review (destructive)",
+      "method": "DELETE",
+      "path": "/reviews/{{reviewId}}",
+      "requires": "Review author only; use disposable test data and X-CSRF-Token."
+    },
+    {
+      "name": "Delete game (destructive, admin)",
+      "method": "DELETE",
+      "path": "/games/{{gameId}}",
+      "requires": "Deletes game, reviews, votes, saved-list entries, and releases owned image references. Admin only."
+    }
+  ],
+  "multipartFormDataUploads": [
+    {
+      "name": "Upload avatar, cover, or banner",
+      "method": "POST",
+      "paths": [
+        "/uploads/avatar",
+        "/uploads/avatar/profile",
+        "/uploads/game-cover",
+        "/uploads/game-banner"
+      ],
+      "formData": {
+        "image": "Select File in Postman (JPG, PNG, or WebP; maximum 5 MiB)."
+      }
+    },
+    {
+      "name": "Upload screenshots or review images",
+      "method": "POST",
+      "paths": [
+        "/uploads/screenshots",
+        "/uploads/review-images"
+      ],
+      "formData": {
+        "images": "Select File in Postman; add repeated images rows for multiple files (maximum 8)."
+      }
+    }
+  ],
+  "postmanNotes": [
+    "Set Body > raw > JSON for requests with a body. Copy only the request.body object, without the surrounding request metadata.",
+    "For POST, PATCH, and DELETE, obtain a CSRF token from GET /auth/csrf and send X-CSRF-Token. Public register/login/verify/forgot/reset routes are CSRF-exempt.",
+    "Keep Postman's cookie jar enabled. Authentication uses gr_access and gr_refresh cookies, not bearer tokens.",
+    "For game/review images, upload to Cloudinary first and use the returned secure URL and publicId. Arbitrary external image URLs are not accepted for owned uploads.",
+    "Registration, verification, resend, forgot-password, and reset-password email flows need working SMTP. Use a mailbox you control.",
+    "Create and verify an administrator through the normal registration flow, add that email to ADMIN_EMAILS in .env, then restart the backend.",
+    "Use a disposable test database. Delete game/review requests are destructive.",
+    "This file contains request examples only. Import Gamer-Review-API.postman_collection.json for a clickable Postman collection."
+  ]
+}
