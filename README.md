@@ -94,6 +94,8 @@ await fetch(`${API_BASE_URL}/auth/login`, {
 
 All routes are prefixed with `/api`. Successful responses use `{ success, message, data }`; list responses also include `{ pagination: { page, limit, total, totalPages } }`. Errors use `{ success: false, message, errors? }`. Internal stack traces and secrets are not included in production responses.
 
+Interactive API documentation is available at `/api-docs` (OpenAPI JSON: `/api-docs/openapi.json`). Swagger UI uses the browser's same-origin cookie jar for authentication. To try unsafe requests from the deployed docs page, include the backend origin in `CLIENT_URL`, fetch `/api/auth/csrf`, and send the returned token as `X-CSRF-Token`; otherwise use Postman for write requests.
+
 Example discovery request:
 
 ```powershell

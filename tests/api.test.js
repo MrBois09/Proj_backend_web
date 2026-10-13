@@ -23,6 +23,19 @@ describe('Gamer Review API security and health', () => {
     assert.equal(response.headers['set-cookie'].filter((cookie) => cookie.startsWith('gr_csrf=')).length, 1);
   });
 
+  it('serves Swagger UI and an OpenAPI document without exposing configuration', async () => {
+    const uiResponse = await request(app).get('/api-docs/').expect(200);
+    assert.match(uiResponse.headers['content-type'], /text\/html/);
+    assert.match(uiResponse.text, /Swagger UI/);
+
+    const specResponse = await request(app).get('/api-docs/openapi.json').expect(200);
+    assert.equal(specResponse.body.openapi, '3.0.3');
+    assert.equal(specResponse.body.servers[0].url, '/api');
+    assert.ok(specResponse.body.paths['/auth/login'].post);
+    assert.ok(specResponse.body.paths['/uploads/review-images'].post);
+    assert.equal(JSON.stringify(specResponse.body).includes('MONGODB_URI'), false);
+  });
+
   it('rejects unsafe requests without a CSRF token', async () => {
     const response = await request(app).post('/api/auth/refresh').expect(403);
     assert.equal(response.body.code, 'CSRF_INVALID');

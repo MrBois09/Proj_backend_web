@@ -2,10 +2,12 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import swaggerUi from 'swagger-ui-express';
 import { databaseStatus } from './config/database.js';
 import { getAllowedOrigins } from './config/env.js';
 import { csrfCookie, csrfProtection } from './middleware/security.js';
 import { globalRateLimit } from './middleware/rateLimit.js';
+import { openapiSpec } from './openapi.js';
 import apiRoutes from './routes/index.js';
 
 export const app = express();
@@ -36,6 +38,14 @@ app.get('/api/health', (_req, res) => {
     data: { status }
   });
 });
+
+app.get('/api-docs/openapi.json', (_req, res) => res.json(openapiSpec));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
+  customSiteTitle: 'Gamer Review API - Swagger UI'
+}, undefined, undefined, {
+  persistAuthorization: false,
+  withCredentials: true
+}));
 
 app.use('/api', csrfProtection, apiRoutes);
 
