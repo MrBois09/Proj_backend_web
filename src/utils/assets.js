@@ -54,3 +54,22 @@ export async function releaseUploadedAssets(images = []) {
     }
   }
 }
+
+export async function discardUnclaimedAssets(ownerId, images = []) {
+  for (const image of images) {
+    if (!image?.publicId || !image?.url) continue;
+    const asset = await UploadedAsset.findOne({
+      ownerId,
+      publicId: image.publicId,
+      secureUrl: image.url,
+      referenceCount: 0
+    });
+    if (!asset) continue;
+    try {
+      await deleteImage(asset.publicId);
+      await asset.deleteOne();
+    } catch {
+      console.error('Cloudinary asset cleanup failed');
+    }
+  }
+}

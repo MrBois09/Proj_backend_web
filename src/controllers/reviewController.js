@@ -8,7 +8,8 @@ import { AppError, asyncHandler } from '../utils/errors.js';
 import { escapeRegex } from '../utils/security.js';
 import { paginated, success } from '../utils/response.js';
 import { cloudinaryImageUrl, parse } from '../validators/common.js';
-import { claimUploadedAssets, releaseUploadedAssets } from '../utils/assets.js';
+import { claimUploadedAssets, discardUnclaimedAssets, releaseUploadedAssets } from '../utils/assets.js';
+import { storeImages } from './uploadController.js';
 
 const reviewInput = z.object({
   title: z.string().trim().min(1).max(160),
@@ -47,6 +48,19 @@ const reviewSort = {
   lowestRating: { rating: 1, createdAt: -1, _id: -1 }
 };
 
+function normalizeMultipartReview(body) {
+  const normalized = { ...body };
+  if (normalized.rating !== undefined) normalized.rating = Number(normalized.rating);
+  for (const field of ['pros', 'cons', 'tags']) {
+    if (normalized[field] !== undefined && !Array.isArray(normalized[field])) {
+      normalized[field] = [normalized[field]];
+    }
+  }
+  if (normalized.containsSpoilers === 'true') normalized.containsSpoilers = true;
+  if (normalized.containsSpoilers === 'false') normalized.containsSpoilers = false;
+  return normalized;
+}
+
 async function listReviews(req, res, initialFilter = {}) {
   const input = parseReviewQuery(req.query);
   const filter = { ...initialFilter };
@@ -56,7 +70,7 @@ async function listReviews(req, res, initialFilter = {}) {
   }
   if (input.tag) filter.tags = { $regex: `^${escapeRegex(input.tag)}$`, $options: 'i' };
   if (input.genre || input.platform) {
-    const gameFilter = { approvalStatus: 'approved' };
+    const gameFilter = { approvalStatus: { $ne: 'rejected' } };
     if (input.genre) gameFilter.genres = { $regex: `^${escapeRegex(input.genre)}$`, $options: 'i' };
     if (input.platform) gameFilter.platforms = { $regex: `^${escapeRegex(input.platform)}$`, $options: 'i' };
     const games = await Game.find(gameFilter).select('_id').lean();
@@ -65,7 +79,7 @@ async function listReviews(req, res, initialFilter = {}) {
   if (input.search) {
     const pattern = new RegExp(escapeRegex(input.search), 'i');
     const [games, users] = await Promise.all([
-      Game.find({ approvalStatus: 'approved', $or: [{ title: pattern }, { genres: pattern }, { platforms: pattern }] }).select('_id').lean(),
+      Game.find({ approvalStatus: { $ne: 'rejected' }, $or: [{ title: pattern }, { genres: pattern }, { platforms: pattern }] }).select('_id').lean(),
       User.find({ $or: [{ username: pattern }, { displayName: pattern }] }).select('_id').lean()
     ]);
     filter.$or = [
@@ -119,15 +133,28 @@ async function recalculateGame(gameId) {
 }
 
 export const createReview = asyncHandler(async (req, res) => {
-  const input = parse(reviewInput, req.body);
-  const game = await Game.findOne({ _id: req.params.gameId, approvalStatus: 'approved' }).select('_id');
-  if (!game) throw new AppError('Approved game not found', 404);
-  const claimed = await claimUploadedAssets(req.user.id, input.images || []);
+  const isMultipart = req.is('multipart/form-data');
+  const input = parse(reviewInput, isMultipart ? normalizeMultipartReview(req.body) : req.body);
+  const game = await Game.findOne({ _id: req.params.gameId, approvalStatus: { $ne: 'rejected' } }).select('_id');
+  if (!game) throw new AppError('Game not found', 404);
+  if ((input.images?.length || 0) + (req.files?.length || 0) > 8) {
+    throw new AppError('A review can include at most 8 images', 422);
+  }
+  const uploadedImages = req.files?.length
+    ? await storeImages(req.user.id, 'review-images', req.files)
+    : [];
+  const completeInput = parse(reviewInput, {
+    ...input,
+    images: [...(input.images || []), ...uploadedImages]
+  });
+  let claimed = [];
   let review;
   try {
-    review = await Review.create({ ...input, userId: req.user.id, gameId: game.id });
+    claimed = await claimUploadedAssets(req.user.id, completeInput.images || []);
+    review = await Review.create({ ...completeInput, userId: req.user.id, gameId: game.id });
   } catch (error) {
     await releaseUploadedAssets(claimed);
+    await discardUnclaimedAssets(req.user.id, uploadedImages);
     throw error;
   }
   await recalculateGame(game.id);

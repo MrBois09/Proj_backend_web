@@ -53,7 +53,7 @@ Copy `.env.example` to `.env` for local development. Never commit `.env`. In pro
 | `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES` | Password reset token lifetime |
 | `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS` | General request-rate limit |
 | `FRONTEND_RESET_PASSWORD_PATH` | Frontend route that receives password reset tokens |
-| `ADMIN_EMAILS` | Comma-separated email allowlist for game moderation |
+| `ADMIN_EMAILS` | Comma-separated email allowlist for game editing and deletion |
 
 Feature secrets are not returned by any API. SMTP errors do not include credentials, email contents, or tokens in logs. SMTP delivery is not verified until working credentials and an approved sender are configured.
 
@@ -130,7 +130,7 @@ The matching React application was not present in the supplied workspace; this i
 | Existing UI flow | API calls to connect |
 |---|---|
 | Home / discovery | `GET /games/featured`, `/games/trending`, `/games/top-rated`, `/games/new-releases`, `/reviews/recent` |
-| Explore / add game | `GET /games` with search/filter/sort/page parameters; `POST /uploads/game-cover`, then `POST /games` (pending review) |
+| Explore / add game | `GET /games` with search/filter/sort/page parameters; `POST /uploads/game-cover`, then `POST /games` (published immediately) |
 | Game detail | `GET /games/:idOrSlug`, `GET /games/:gameId/reviews`, review vote routes, and the user's wishlist/favorite routes |
 | Reviews discovery | `GET /reviews` with search, rating filters, sorting, and pagination |
 | Write/edit review | `POST /uploads/review-images`, `POST /games/:gameId/reviews`, then author-only `PATCH`/`DELETE /reviews/:id` |
@@ -167,14 +167,14 @@ Register accepts `displayName`, `username`, `email`, `password`, and optional `c
 | GET | `/games/top-rated` | Public; only games with reviews |
 | GET | `/games/new-releases` | Public |
 | GET | `/games/:idOrSlug` | Public; includes rating distribution |
-| GET | `/games/pending` | Verified administrator; moderation queue |
-| POST | `/games` | Authenticated user; submissions start pending |
+| POST | `/games` | Authenticated user; publishes immediately |
 | GET | `/games/genres` | Public; returns the fixed game genre list |
-| PATCH | `/games/:id` | Verified administrator |
-| PATCH | `/games/:id/moderate` | Verified administrator |
-| DELETE | `/games/:id` | Verified administrator |
+| GET | `/games/tags` | Public; returns game tags/genres stored in MongoDB |
+| GET | `/games/platforms` | Public; returns the fixed game platform list |
+| PATCH | `/games/:id` | Administrator |
+| DELETE | `/games/:id` | Administrator |
 
-`GET /games` supports `search`, `genre`, `platform`, `minRating`, `releaseYear`, `communityAdded`, `sort`, `page`, and `limit`. Sort values are `popular`, `highestRated`, `mostReviewed`, `newestReleases`, `recentlyAdded`, and `alphabetical`. Popularity is based on actual review count and rating; the API does not seed fabricated engagement. New user submissions require approval through the admin-only moderation route.
+`GET /games` supports `search`, `genre`, `platform`, `minRating`, `releaseYear`, `communityAdded`, `sort`, `page`, and `limit`. Sort values are `popular`, `highestRated`, `mostReviewed`, `newestReleases`, `recentlyAdded`, and `alphabetical`. Supported game tags and platforms are stored in `gametags` and `gameplatforms` collections. The default tag and platform entries are inserted idempotently at the first successful database connection; game submissions are validated against the current MongoDB catalog values. Authenticated users' new game submissions are published immediately and may receive reviews without administrator approval.
 
 ### Reviews
 
@@ -191,6 +191,8 @@ Register accepts `displayName`, `username`, `email`, `password`, and optional `c
 | POST | `/reviews/:id/like` | Authenticated user |
 | DELETE | `/reviews/:id/like` | Authenticated user |
 | POST | `/reviews/:id/vote` | Authenticated user |
+
+Create a review as JSON with pre-uploaded image references, or send `multipart/form-data` directly to `POST /games/:gameId/reviews` with `title`, `content`, `rating`, and up to 8 file fields named `images`. Multipart image files are uploaded and attached to the review in the same request.
 
 Review listing supports `search`, `gameId`, `genre`, `platform`, `tag`, `minRating`, `maxRating`, `sort`, `page`, and `limit`. Sort values include `mostHelpful`, `mostRecent`/`newest`, `oldest`, `highestRating`, and `lowestRating`. A vote is one of `like`, `helpful`, or `notHelpful`; Like is independent from the helpfulness vote, posting the same vote toggles it off, and changing between Helpful/Not Helpful replaces the prior helpfulness vote. Users cannot vote on their own review. Ratings are recalculated from persisted reviews.
 

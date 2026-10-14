@@ -30,7 +30,7 @@ async function querySavedGames(Model, userId, input) {
     { $match: { userId: new mongoose.Types.ObjectId(userId) } },
     { $lookup: { from: 'games', localField: 'gameId', foreignField: '_id', as: 'game' } },
     { $unwind: '$game' },
-    { $match: { 'game.approvalStatus': 'approved' } }
+    { $match: { 'game.approvalStatus': { $ne: 'rejected' } } }
   ];
   if (input.search) {
     const pattern = new RegExp(escapeRegex(input.search), 'i');
@@ -75,8 +75,8 @@ export function addSavedGame(kind) {
   return asyncHandler(async (req, res) => {
     const Model = models[kind];
     if (!/^[a-f\d]{24}$/i.test(req.params.gameId)) throw new AppError('Invalid gameId', 400);
-    const game = await Game.findOne({ _id: req.params.gameId, approvalStatus: 'approved' }).select('_id');
-    if (!game) throw new AppError('Approved game not found', 404);
+    const game = await Game.findOne({ _id: req.params.gameId, approvalStatus: { $ne: 'rejected' } }).select('_id');
+    if (!game) throw new AppError('Game not found', 404);
     try {
       await Model.updateOne(
         { userId: req.user.id, gameId: game.id },

@@ -8,7 +8,10 @@ import vercelHandler from '../api/index.js';
 import { createRateLimiter } from '../src/middleware/rateLimit.js';
 import { ReviewVote } from '../src/models/ReviewVote.js';
 import { Game } from '../src/models/Game.js';
+import { GamePlatform } from '../src/models/GamePlatform.js';
+import { GameTag } from '../src/models/GameTag.js';
 import { GAME_GENRES } from '../src/constants/gameGenres.js';
+import { GAME_PLATFORMS } from '../src/constants/gamePlatforms.js';
 import { createToken, hashToken, isImageBuffer } from '../src/utils/security.js';
 
 describe('Gamer Review API security and health', () => {
@@ -35,15 +38,15 @@ describe('Gamer Review API security and health', () => {
     assert.equal(specResponse.body.servers[0].url, '/api');
     assert.ok(specResponse.body.paths['/auth/login'].post);
     assert.ok(specResponse.body.paths['/uploads/review-images'].post);
+    assert.ok(specResponse.body.paths['/games/{gameId}/reviews'].post.requestBody.content['multipart/form-data']);
+    assert.ok(!specResponse.body.paths['/games/pending']);
+    assert.ok(!specResponse.body.paths['/games/{id}/moderate']);
     assert.ok(!specResponse.body.paths['/auth/verify-email']);
     assert.ok(specResponse.body.paths['/games/genres'].get);
+    assert.ok(specResponse.body.paths['/games/tags'].get);
+    assert.ok(specResponse.body.paths['/games/platforms'].get);
     assert.equal(specResponse.body.components.schemas.RegisterInput.required.includes('username'), false);
     assert.equal(JSON.stringify(specResponse.body).includes('MONGODB_URI'), false);
-  });
-
-  it('provides the fixed supported game genres', async () => {
-    const response = await request(app).get('/api/games/genres').expect(200);
-    assert.deepEqual(response.body.data, ['Action', 'RPG', 'Adventure', 'FPS', 'Strategy', 'Horror', 'Indie']);
   });
 
   it('rejects unsafe requests without a CSRF token', async () => {
@@ -105,6 +108,19 @@ describe('Gamer Review API security and health', () => {
     assert.equal(response.body.message, 'Authentication required');
   });
 
+  it('protects direct multipart review creation with authentication', async () => {
+    const agent = request.agent(app);
+    const csrfResponse = await agent.get('/api/auth/csrf').expect(200);
+    const response = await agent.post('/api/games/507f1f77bcf86cd799439011/reviews')
+      .set('X-CSRF-Token', csrfResponse.body.data.csrfToken)
+      .field('title', 'Test review')
+      .field('content', 'Review text')
+      .field('rating', '8')
+      .attach('images', Buffer.from('fake image'), 'review.png')
+      .expect(401);
+    assert.equal(response.body.message, 'Authentication required');
+  });
+
   it('returns a consistent API not-found response', async () => {
     const response = await request(app).get('/api/not-a-route').expect(404);
     assert.equal(response.body.success, false);
@@ -154,14 +170,16 @@ describe('Security utilities', () => {
     assert.ok(voteIndex);
   });
 
-  it('restricts game genres to the supported category list', async () => {
+  it('stores game tag and platform catalogs in dedicated unique collections', async () => {
     assert.deepEqual(GAME_GENRES, ['Action', 'RPG', 'Adventure', 'FPS', 'Strategy', 'Horror', 'Indie']);
-    const game = new Game({
-      title: 'Test game',
-      slug: 'test-game',
-      description: 'A test game',
-      genres: ['Other']
-    });
-    await assert.rejects(game.validate(), /genres/);
+    assert.deepEqual(GAME_PLATFORMS, ['PC', 'Console', 'Smartphone']);
+    assert.equal(GameTag.collection.collectionName, 'gametags');
+    assert.equal(GamePlatform.collection.collectionName, 'gameplatforms');
+    assert.ok(GameTag.schema.path('name').options.unique);
+    assert.ok(GamePlatform.schema.path('name').options.unique);
+    assert.equal(Game.schema.path('genres').caster.enumValues.length, 0);
+    assert.equal(Game.schema.path('platforms').caster.enumValues.length, 0);
+    const publishedGame = new Game({ title: 'Published game', slug: 'published-game', description: 'A published game' });
+    assert.equal(publishedGame.approvalStatus, 'approved');
   });
 });

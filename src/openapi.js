@@ -1,5 +1,3 @@
-import { GAME_GENRES } from './constants/gameGenres.js';
-
 const successResponse = {
   description: 'Request completed successfully',
   content: {
@@ -83,7 +81,7 @@ const idResponses = {
 const reviewQueryParameters = [
   { name: 'search', in: 'query', schema: { type: 'string', maxLength: 100 } },
   { name: 'gameId', in: 'query', schema: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' } },
-  { name: 'genre', in: 'query', schema: { type: 'string', enum: GAME_GENRES } },
+  { name: 'genre', in: 'query', schema: { type: 'string', description: 'A value returned by GET /games/tags.' } },
   { name: 'platform', in: 'query', schema: { type: 'string', maxLength: 60 } },
   { name: 'tag', in: 'query', schema: { type: 'string', maxLength: 40 } },
   { name: 'minRating', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 10 } },
@@ -228,6 +226,20 @@ export const openapiSpec = {
         responses: { 200: successResponse }
       }
     },
+    '/games/tags': {
+      get: {
+        summary: 'List game tags used as genres and recommendation categories',
+        tags: ['Games'],
+        responses: { 200: successResponse }
+      }
+    },
+    '/games/platforms': {
+      get: {
+        summary: 'List the supported game platforms',
+        tags: ['Games'],
+        responses: { 200: successResponse }
+      }
+    },
     '/auth/logout': {
       post: csrfOperation({
         summary: 'Sign out and clear authentication cookies',
@@ -265,8 +277,8 @@ export const openapiSpec = {
         tags: ['Games'],
         parameters: [
           { name: 'search', in: 'query', schema: { type: 'string', maxLength: 100 } },
-          { name: 'genre', in: 'query', schema: { type: 'string', enum: GAME_GENRES } },
-          { name: 'platform', in: 'query', schema: { type: 'string', maxLength: 60 } },
+          { name: 'genre', in: 'query', schema: { type: 'string', description: 'A value returned by GET /games/tags.' } },
+          { name: 'platform', in: 'query', schema: { type: 'string', description: 'A value returned by GET /games/platforms.' } },
           { name: 'minRating', in: 'query', schema: { type: 'number', minimum: 0, maximum: 10 } },
           { name: 'releaseYear', in: 'query', schema: { type: 'integer', minimum: 1950, maximum: 2100 } },
           { name: 'communityAdded', in: 'query', schema: { type: 'string', enum: ['true', 'false'] } },
@@ -284,7 +296,7 @@ export const openapiSpec = {
         responses: paginatedListResponses
       },
       post: protectedOperation({
-        summary: 'Submit a game for review and approval',
+        summary: 'Create and publish a game immediately',
         tags: ['Games'],
         requestBody: jsonBody('GameCreateInput'),
         responses: { 201: successResponse, 401: errorResponse, 409: errorResponse, 422: errorResponse }
@@ -322,17 +334,9 @@ export const openapiSpec = {
         responses: paginatedListResponses
       }
     },
-    '/games/pending': {
-      get: protectedOperation({
-        summary: 'List pending game submissions (administrator only)',
-        tags: ['Games'],
-        parameters: pageParameters(50, 20),
-        responses: { ...paginatedListResponses, 401: errorResponse, 403: errorResponse }
-      })
-    },
     '/games/{idOrSlug}': {
       get: {
-        summary: 'Get an approved game by ObjectId or slug',
+        summary: 'Get a published game by ObjectId or slug',
         tags: ['Games'],
         parameters: [{
           name: 'idOrSlug',
@@ -356,15 +360,6 @@ export const openapiSpec = {
         responses: { 200: successResponse, ...idResponses, 401: errorResponse, 403: errorResponse }
       })
     },
-    '/games/{id}/moderate': {
-      patch: protectedOperation({
-        summary: 'Approve or reject a game submission (administrator only)',
-        tags: ['Games'],
-        parameters: [idParameter()],
-        requestBody: jsonBody('ModerateGameInput'),
-        responses: { 200: successResponse, ...idResponses, 401: errorResponse, 403: errorResponse, 422: errorResponse }
-      })
-    },
     '/games/{gameId}/reviews': {
       get: {
         summary: 'List reviews for a game',
@@ -376,7 +371,13 @@ export const openapiSpec = {
         summary: 'Create a review for an approved game',
         tags: ['Reviews'],
         parameters: [idParameter('gameId')],
-        requestBody: jsonBody('ReviewCreateInput'),
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ReviewCreateInput' } },
+            'multipart/form-data': { schema: { $ref: '#/components/schemas/ReviewMultipartInput' } }
+          }
+        },
         responses: { 201: successResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse, 422: errorResponse }
       })
     },
@@ -659,8 +660,8 @@ export const openapiSpec = {
           bannerPublicId: { type: 'string', maxLength: 255 },
           screenshots: { type: 'array', maxItems: 12, items: { $ref: '#/components/schemas/ImageReference' } },
           description: { type: 'string', minLength: 1, maxLength: 10000 },
-          genres: { type: 'array', maxItems: GAME_GENRES.length, items: { type: 'string', enum: GAME_GENRES } },
-          platforms: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 60 } },
+          genres: { type: 'array', maxItems: 30, items: { type: 'string', maxLength: 40, description: 'A value returned by GET /games/tags.' } },
+          platforms: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 60, description: 'A value returned by GET /games/platforms.' } },
           releaseDate: { type: 'string', format: 'date-time' },
           releaseYear: { type: 'integer', minimum: 1950, maximum: 2100 },
           developer: { type: 'string', maxLength: 120 },
@@ -681,11 +682,6 @@ export const openapiSpec = {
           }
         ]
       },
-      ModerateGameInput: {
-        type: 'object',
-        required: ['approvalStatus'],
-        properties: { approvalStatus: { type: 'string', enum: ['approved', 'rejected'] } }
-      },
       ReviewInput: {
         type: 'object',
         properties: {
@@ -705,6 +701,20 @@ export const openapiSpec = {
           { $ref: '#/components/schemas/ReviewInput' },
           { type: 'object', required: ['title', 'content', 'rating'] }
         ]
+      },
+      ReviewMultipartInput: {
+        type: 'object',
+        required: ['title', 'content', 'rating'],
+        properties: {
+          title: { type: 'string', minLength: 1, maxLength: 160 },
+          content: { type: 'string', minLength: 1, maxLength: 10000 },
+          rating: { type: 'integer', minimum: 1, maximum: 10 },
+          pros: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 300 } },
+          cons: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 300 } },
+          tags: { type: 'array', maxItems: 30, items: { type: 'string', minLength: 1, maxLength: 40 } },
+          images: { type: 'array', maxItems: 8, items: { type: 'string', format: 'binary' } },
+          containsSpoilers: { type: 'boolean' }
+        }
       },
       ReviewVoteInput: {
         type: 'object',
