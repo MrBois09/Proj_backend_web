@@ -53,7 +53,7 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
     throw new AppError('Authentication required', 401);
   }
   const user = await User.findById(payload.sub)
-    .select('displayName username email avatarUrl bio favoriteTags emailVerified createdAt +sessionVersion');
+    .select('displayName username email avatarUrl bio favoriteTags createdAt +sessionVersion');
   if (!user) throw new AppError('Authentication required', 401);
   if (payload.sv !== user.sessionVersion) throw new AppError('Authentication required', 401);
   req.user = user;

@@ -5,10 +5,13 @@ import {
 } from '../controllers/gameController.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import { validateId } from '../middleware/validate.js';
+import { GAME_GENRES } from '../constants/gameGenres.js';
+import { success } from '../utils/response.js';
 
 const router = Router();
 
 router.get('/', listGames);
+router.get('/genres', (_req, res) => success(res, GAME_GENRES, 'Game genres retrieved'));
 router.get('/featured', featuredGames);
 router.get('/trending', trendingGames);
 router.get('/top-rated', topRatedGames);

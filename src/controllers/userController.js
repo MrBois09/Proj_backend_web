@@ -49,7 +49,7 @@ export const getPublicProfile = asyncHandler(async (req, res) => {
 export const updateMyProfile = asyncHandler(async (req, res) => {
   const input = parse(profileSchema, req.body);
   const user = await User.findByIdAndUpdate(req.user.id, { $set: input }, { new: true, runValidators: true })
-    .select('displayName username email avatarUrl bio favoriteTags emailVerified createdAt');
+    .select('displayName username email avatarUrl bio favoriteTags createdAt');
   if (!user) throw new AppError('User not found', 404);
   return success(res, { user }, 'Profile updated successfully');
 });

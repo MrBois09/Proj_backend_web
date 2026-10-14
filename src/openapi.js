@@ -1,3 +1,5 @@
+import { GAME_GENRES } from './constants/gameGenres.js';
+
 const successResponse = {
   description: 'Request completed successfully',
   content: {
@@ -81,7 +83,7 @@ const idResponses = {
 const reviewQueryParameters = [
   { name: 'search', in: 'query', schema: { type: 'string', maxLength: 100 } },
   { name: 'gameId', in: 'query', schema: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' } },
-  { name: 'genre', in: 'query', schema: { type: 'string', maxLength: 40 } },
+  { name: 'genre', in: 'query', schema: { type: 'string', enum: GAME_GENRES } },
   { name: 'platform', in: 'query', schema: { type: 'string', maxLength: 60 } },
   { name: 'tag', in: 'query', schema: { type: 'string', maxLength: 40 } },
   { name: 'minRating', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 10 } },
@@ -156,9 +158,9 @@ export const openapiSpec = {
     description: [
       'HTTP API for Gamer Review. All API paths below are prefixed with `/api`.',
       '',
-      'Authentication uses HttpOnly access and refresh cookies. Call `GET /auth/csrf` first and send the returned token as `X-CSRF-Token` on unsafe requests, except registration, login, email verification, forgot-password, and reset-password.',
+      'Authentication uses HttpOnly access and refresh cookies. Call `GET /auth/csrf` first and send the returned token as `X-CSRF-Token` on unsafe requests, except registration, login, forgot-password, and reset-password.',
       '',
-      'Email verification is optional for signing in. Image uploads use multipart form data; accepted formats are JPG, PNG, and WebP up to 5 MB per file.'
+      'Registration does not require email verification. Game genres are fixed to Action, RPG, Adventure, FPS, Strategy, Horror, and Indie. Image uploads use multipart form data; accepted formats are JPG, PNG, and WebP up to 5 MB per file.'
     ].join('\n')
   },
   servers: [{ url: '/api', description: 'This deployment' }],
@@ -193,23 +195,7 @@ export const openapiSpec = {
         summary: 'Register an account',
         tags: ['Authentication'],
         requestBody: jsonBody('RegisterInput'),
-        responses: { 201: successResponse, 409: errorResponse, 422: errorResponse, 503: errorResponse }
-      }
-    },
-    '/auth/verify-email': {
-      post: {
-        summary: 'Verify an email address with its one-time token',
-        tags: ['Authentication'],
-        requestBody: jsonBody('TokenInput'),
-        responses: { 200: successResponse, 400: errorResponse, 422: errorResponse }
-      }
-    },
-    '/auth/resend-verification': {
-      post: {
-        summary: 'Resend the verification email',
-        tags: ['Authentication'],
-        requestBody: jsonBody('EmailInput'),
-        responses: { 200: successResponse, 422: errorResponse, 429: errorResponse }
+        responses: { 201: successResponse, 409: errorResponse, 422: errorResponse }
       }
     },
     '/auth/login': {
@@ -234,6 +220,13 @@ export const openapiSpec = {
         tags: ['Authentication'],
         responses: { 200: successResponse, 401: errorResponse, 403: errorResponse, 429: errorResponse }
       })
+    },
+    '/games/genres': {
+      get: {
+        summary: 'List the supported game genres',
+        tags: ['Games'],
+        responses: { 200: successResponse }
+      }
     },
     '/auth/logout': {
       post: csrfOperation({
@@ -272,7 +265,7 @@ export const openapiSpec = {
         tags: ['Games'],
         parameters: [
           { name: 'search', in: 'query', schema: { type: 'string', maxLength: 100 } },
-          { name: 'genre', in: 'query', schema: { type: 'string', maxLength: 40 } },
+          { name: 'genre', in: 'query', schema: { type: 'string', enum: GAME_GENRES } },
           { name: 'platform', in: 'query', schema: { type: 'string', maxLength: 60 } },
           { name: 'minRating', in: 'query', schema: { type: 'number', minimum: 0, maximum: 10 } },
           { name: 'releaseYear', in: 'query', schema: { type: 'integer', minimum: 1950, maximum: 2100 } },
@@ -599,12 +592,13 @@ export const openapiSpec = {
       },
       RegisterInput: {
         type: 'object',
-        required: ['displayName', 'username', 'email', 'password'],
+        required: ['email', 'password'],
         properties: {
-          displayName: { type: 'string', minLength: 1, maxLength: 80 },
-          username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9_]+$' },
+          displayName: { type: 'string', minLength: 1, maxLength: 80, description: 'Provide this or name.' },
+          name: { type: 'string', minLength: 1, maxLength: 80, description: 'Frontend form alias for displayName.' },
+          username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9_]+$', description: 'Optional; generated from the email address when omitted.' },
           email: { type: 'string', format: 'email', maxLength: 254 },
-          password: { $ref: '#/components/schemas/Password' },
+          password: { type: 'string', minLength: 8, maxLength: 128 },
           confirmPassword: { type: 'string' }
         }
       },
@@ -624,16 +618,10 @@ export const openapiSpec = {
         required: ['email'],
         properties: { email: { type: 'string', format: 'email' } }
       },
-      TokenInput: {
-        type: 'object',
-        required: ['token'],
-        properties: { token: { type: 'string', minLength: 32, maxLength: 256 } }
-      },
       Password: {
         type: 'string',
-        minLength: 10,
-        maxLength: 128,
-        description: 'Must include lowercase and uppercase letters, a number, and a symbol.'
+        minLength: 8,
+        maxLength: 128
       },
       ResetPasswordInput: {
         type: 'object',
@@ -671,7 +659,7 @@ export const openapiSpec = {
           bannerPublicId: { type: 'string', maxLength: 255 },
           screenshots: { type: 'array', maxItems: 12, items: { $ref: '#/components/schemas/ImageReference' } },
           description: { type: 'string', minLength: 1, maxLength: 10000 },
-          genres: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 40 } },
+          genres: { type: 'array', maxItems: GAME_GENRES.length, items: { type: 'string', enum: GAME_GENRES } },
           platforms: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 60 } },
           releaseDate: { type: 'string', format: 'date-time' },
           releaseYear: { type: 'integer', minimum: 1950, maximum: 2100 },

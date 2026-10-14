@@ -1,10 +1,9 @@
 import { Router } from 'express';
 import {
-  changePassword, forgotPassword, login, logout, me, refresh, register,
-  resendVerification, resetPassword, verifyEmail
+  changePassword, forgotPassword, login, logout, me, refresh, register, resetPassword
 } from '../controllers/authController.js';
 import { requireAuth } from '../middleware/auth.js';
-import { authRateLimit, resendRateLimit } from '../middleware/rateLimit.js';
+import { authRateLimit } from '../middleware/rateLimit.js';
 import { success } from '../utils/response.js';
 
 const router = Router();
@@ -13,8 +12,6 @@ router.get('/csrf', (req, res) => {
   return success(res, { csrfToken: req.csrfToken }, 'CSRF token issued');
 });
 router.post('/register', authRateLimit, register);
-router.post('/verify-email', authRateLimit, verifyEmail);
-router.post('/resend-verification', resendRateLimit, resendVerification);
 router.post('/login', authRateLimit, login);
 router.get('/me', requireAuth, me);
 router.post('/refresh', authRateLimit, refresh);

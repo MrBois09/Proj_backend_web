@@ -50,9 +50,9 @@ Copy `.env.example` to `.env` for local development. Never commit `.env`. In pro
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Server-side image storage |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | Transactional email SMTP |
 | `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME` | Verified email sender |
-| `EMAIL_VERIFICATION_TOKEN_EXPIRES_MINUTES`, `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES` | Single-use email token lifetimes |
+| `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES` | Password reset token lifetime |
 | `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS` | General request-rate limit |
-| `FRONTEND_VERIFY_EMAIL_PATH`, `FRONTEND_RESET_PASSWORD_PATH` | Frontend routes that receive one-time tokens |
+| `FRONTEND_RESET_PASSWORD_PATH` | Frontend route that receives password reset tokens |
 | `ADMIN_EMAILS` | Comma-separated email allowlist for game moderation |
 
 Feature secrets are not returned by any API. SMTP errors do not include credentials, email contents, or tokens in logs. SMTP delivery is not verified until working credentials and an approved sender are configured.
@@ -67,11 +67,11 @@ Create a Cloudinary account and configure the three Cloudinary environment value
 
 ## Email provider
 
-Configure an SMTP provider, verify the sender address/domain with that provider, and set the SMTP environment values in `.env` or Vercel. Verification and reset emails contain absolute links built from `CLIENT_URL` plus the configured frontend route. Email tokens are random, single-use, expiring, and stored only as SHA-256 hashes. Forgot-password and resend-verification responses are account-enumeration-resistant.
+Configure an SMTP provider, verify the sender address/domain with that provider, and set the SMTP environment values in `.env` or Vercel. Password reset emails contain absolute links built from `CLIENT_URL` plus the configured frontend route. Reset tokens are random, single-use, expiring, and stored only as SHA-256 hashes. Forgot-password responses are account-enumeration-resistant. Account registration does not require or send email verification.
 
 ## Authentication, cookies, and CSRF
 
-- Registration creates an unverified account and sends a verification email. Email verification is optional: users may sign in and use the API before verifying.
+- Registration creates an account without email verification. `username` is optional and generated from the email address when omitted; the frontend registration form may send only display name, email, and password.
 - Login issues a short-lived access cookie and a rotating refresh cookie. Both are `HttpOnly`; refresh tokens are signed, stored hashed in MongoDB, and invalidated on rotation/logout/password reset.
 - Passwords are bcrypt-hashed. Password reset and password change increment the account session version so outstanding access tokens stop working.
 - Cookies use `SameSite=Lax` by default and `Secure` in production. If the sites are cross-site, set `COOKIE_SAME_SITE=none`, use HTTPS (`Secure` is then mandatory), and set a compatible cookie domain if applicable. Browsers may block third-party cookies; a same-site custom domain or same-origin reverse proxy is preferred.
@@ -146,16 +146,14 @@ The frontend should set only a public `VITE_API_BASE_URL` (for example, `https:/
 |---|---|---|
 | GET | `/health` | Public; reports database `ok` or `degraded` |
 | GET | `/auth/csrf` | Public |
-| POST | `/auth/register` | Public, rate limited |
-| POST | `/auth/verify-email` | Public, rate limited |
-| POST | `/auth/resend-verification` | Public, rate limited |
+| POST | `/auth/register` | Public, rate limited; accepts `displayName` or frontend field `name`; username is generated if omitted |
 | POST | `/auth/login` | Public, rate limited |
-| GET | `/auth/me` | Verified user |
+| GET | `/auth/me` | Authenticated user |
 | POST | `/auth/refresh` | Refresh cookie, rate limited |
 | POST | `/auth/logout` | Public, idempotent |
 | POST | `/auth/forgot-password` | Public, rate limited |
 | POST | `/auth/reset-password` | Public, rate limited |
-| PATCH | `/auth/change-password` | Verified user |
+| PATCH | `/auth/change-password` | Authenticated user |
 
 Register accepts `displayName`, `username`, `email`, `password`, and optional `confirmPassword`. Login accepts `identifier` (email or username), or `email`/`username`, and `password`. Passwords require 10-128 characters with lowercase, uppercase, a number, and a symbol.
 
@@ -170,7 +168,8 @@ Register accepts `displayName`, `username`, `email`, `password`, and optional `c
 | GET | `/games/new-releases` | Public |
 | GET | `/games/:idOrSlug` | Public; includes rating distribution |
 | GET | `/games/pending` | Verified administrator; moderation queue |
-| POST | `/games` | Verified user; submissions start pending |
+| POST | `/games` | Authenticated user; submissions start pending |
+| GET | `/games/genres` | Public; returns the fixed game genre list |
 | PATCH | `/games/:id` | Verified administrator |
 | PATCH | `/games/:id/moderate` | Verified administrator |
 | DELETE | `/games/:id` | Verified administrator |
@@ -186,12 +185,12 @@ Register accepts `displayName`, `username`, `email`, `password`, and optional `c
 | GET | `/reviews/:id` | Public |
 | GET | `/games/:gameId/reviews` | Public |
 | GET | `/users/:username/reviews` | Public |
-| POST | `/games/:gameId/reviews` | Verified user |
+| POST | `/games/:gameId/reviews` | Authenticated user |
 | PATCH | `/reviews/:id` | Author only |
 | DELETE | `/reviews/:id` | Author only |
-| POST | `/reviews/:id/like` | Verified user |
-| DELETE | `/reviews/:id/like` | Verified user |
-| POST | `/reviews/:id/vote` | Verified user |
+| POST | `/reviews/:id/like` | Authenticated user |
+| DELETE | `/reviews/:id/like` | Authenticated user |
+| POST | `/reviews/:id/vote` | Authenticated user |
 
 Review listing supports `search`, `gameId`, `genre`, `platform`, `tag`, `minRating`, `maxRating`, `sort`, `page`, and `limit`. Sort values include `mostHelpful`, `mostRecent`/`newest`, `oldest`, `highestRating`, and `lowestRating`. A vote is one of `like`, `helpful`, or `notHelpful`; Like is independent from the helpfulness vote, posting the same vote toggles it off, and changing between Helpful/Not Helpful replaces the prior helpfulness vote. Users cannot vote on their own review. Ratings are recalculated from persisted reviews.
 
@@ -204,12 +203,12 @@ Review listing supports `search`, `gameId`, `genre`, `platform`, `tag`, `minRati
 | PATCH | `/users/me` | Verified owner |
 | GET/POST/DELETE | `/users/me/wishlist[/:gameId]` | Verified owner |
 | GET/POST/DELETE | `/users/me/favorites[/:gameId]` | Verified owner |
-| POST | `/uploads/avatar` | Verified user; `image` field |
-| POST | `/uploads/avatar/profile` | Verified user; upload and save avatar |
-| POST | `/uploads/game-cover` | Verified user; `image` field |
-| POST | `/uploads/game-banner` | Verified user; `image` field |
-| POST | `/uploads/screenshots` | Verified user; repeated `images` fields |
-| POST | `/uploads/review-images` | Verified user; repeated `images` fields |
+| POST | `/uploads/avatar` | Authenticated user; `image` field |
+| POST | `/uploads/avatar/profile` | Authenticated user; upload and save avatar |
+| POST | `/uploads/game-cover` | Authenticated user; `image` field |
+| POST | `/uploads/game-banner` | Authenticated user; `image` field |
+| POST | `/uploads/screenshots` | Authenticated user; repeated `images` fields |
+| POST | `/uploads/review-images` | Authenticated user; repeated `images` fields |
 
 Wishlist is private and cannot be requested by another user's ID. Favorites and wishlist are independent, idempotent collections. Profile updates accept only display name, username, bio, and favorite tags; they cannot set roles or authentication fields. Public profile output does not include email or private account data.
 
@@ -243,6 +242,5 @@ The checked-in test suite covers health/degraded behavior, CSRF and CORS rejecti
 - `503` at `/api/health`: MongoDB is disconnected or `MONGODB_URI`/Atlas network access is not configured.
 - `403 CSRF_INVALID`: obtain a fresh token at `/api/auth/csrf` and send it with the matching cookies.
 - `403 Request origin is not allowed`: add the exact frontend origin (scheme and port included) to `CLIENT_URL`.
-- `503 EMAIL_DELIVERY_FAILED` during registration: check SMTP host/credentials and sender verification, then use resend-verification.
 - Upload configuration or delivery failures are returned as safe API errors. Check server-side environment settings without logging secrets.
 - Never use permissive wildcard CORS with credentialed cookies. Rotate any credential that has ever been committed or exposed; `.gitignore` cannot remove a secret from Git history.

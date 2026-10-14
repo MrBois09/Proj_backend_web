@@ -11,6 +11,5 @@ export function createRateLimiter(max = 10, windowMs = 15 * 60 * 1000, useGlobal
 }
 
 export const authRateLimit = createRateLimiter(8);
-export const resendRateLimit = createRateLimiter(3, 60 * 60 * 1000);
 export const uploadRateLimit = createRateLimiter(20);
 export const globalRateLimit = createRateLimiter(100, 15 * 60 * 1000, true);

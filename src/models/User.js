@@ -9,11 +9,7 @@ const userSchema = new mongoose.Schema({
   avatarPublicId: { type: String, default: '', select: false },
   bio: { type: String, default: '', maxlength: 500 },
   favoriteTags: { type: [String], default: [] },
-  emailVerified: { type: Boolean, default: false },
   sessionVersion: { type: Number, default: 0, min: 0, select: false },
-  emailVerificationTokenHash: { type: String, select: false },
-  emailVerificationExpiresAt: { type: Date, select: false },
-  emailVerificationSentAt: { type: Date, select: false },
   passwordResetTokenHash: { type: String, select: false },
   passwordResetExpiresAt: { type: Date, select: false },
   passwordResetSentAt: { type: Date, select: false }

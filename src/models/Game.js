@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { GAME_GENRES } from '../constants/gameGenres.js';
 
 const imageSchema = new mongoose.Schema({
   url: { type: String, required: true },
@@ -14,7 +15,7 @@ const gameSchema = new mongoose.Schema({
   bannerPublicId: { type: String, default: '' },
   screenshots: { type: [imageSchema], default: [] },
   description: { type: String, required: true, maxlength: 10000 },
-  genres: { type: [String], default: [] },
+  genres: { type: [{ type: String, enum: GAME_GENRES }], default: [] },
   platforms: { type: [String], default: [] },
   releaseDate: { type: Date },
   releaseYear: { type: Number, min: 1950, max: 2100 },

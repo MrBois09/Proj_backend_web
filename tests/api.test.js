@@ -7,6 +7,8 @@ import { app } from '../src/app.js';
 import vercelHandler from '../api/index.js';
 import { createRateLimiter } from '../src/middleware/rateLimit.js';
 import { ReviewVote } from '../src/models/ReviewVote.js';
+import { Game } from '../src/models/Game.js';
+import { GAME_GENRES } from '../src/constants/gameGenres.js';
 import { createToken, hashToken, isImageBuffer } from '../src/utils/security.js';
 
 describe('Gamer Review API security and health', () => {
@@ -33,7 +35,15 @@ describe('Gamer Review API security and health', () => {
     assert.equal(specResponse.body.servers[0].url, '/api');
     assert.ok(specResponse.body.paths['/auth/login'].post);
     assert.ok(specResponse.body.paths['/uploads/review-images'].post);
+    assert.ok(!specResponse.body.paths['/auth/verify-email']);
+    assert.ok(specResponse.body.paths['/games/genres'].get);
+    assert.equal(specResponse.body.components.schemas.RegisterInput.required.includes('username'), false);
     assert.equal(JSON.stringify(specResponse.body).includes('MONGODB_URI'), false);
+  });
+
+  it('provides the fixed supported game genres', async () => {
+    const response = await request(app).get('/api/games/genres').expect(200);
+    assert.deepEqual(response.body.data, ['Action', 'RPG', 'Adventure', 'FPS', 'Strategy', 'Horror', 'Indie']);
   });
 
   it('rejects unsafe requests without a CSRF token', async () => {
@@ -74,6 +84,16 @@ describe('Gamer Review API security and health', () => {
       .expect(422);
     assert.equal(response.body.success, false);
     assert.ok(Array.isArray(response.body.errors));
+  });
+
+  it('accepts the frontend registration field names and its eight-character password minimum', async () => {
+    const response = await request(app).post('/api/auth/register')
+      .send({ name: 'Postman Tester', email: 'not-an-email', password: 'password' })
+      .expect(422);
+    const invalidFields = response.body.errors.map((error) => error.field);
+    assert.ok(invalidFields.includes('email'));
+    assert.ok(!invalidFields.includes('displayName'));
+    assert.ok(!invalidFields.includes('password'));
   });
 
   it('rejects image uploads from unauthenticated users', async () => {
@@ -132,5 +152,16 @@ describe('Security utilities', () => {
     const voteIndex = ReviewVote.schema.indexes().find(([keys, options]) =>
       options.unique && keys.userId === 1 && keys.reviewId === 1 && keys.type === 1);
     assert.ok(voteIndex);
+  });
+
+  it('restricts game genres to the supported category list', async () => {
+    assert.deepEqual(GAME_GENRES, ['Action', 'RPG', 'Adventure', 'FPS', 'Strategy', 'Horror', 'Indie']);
+    const game = new Game({
+      title: 'Test game',
+      slug: 'test-game',
+      description: 'A test game',
+      genres: ['Other']
+    });
+    await assert.rejects(game.validate(), /genres/);
   });
 });

@@ -4,7 +4,7 @@ import { cookieOptions, cookieNames } from './auth.js';
 import { AppError } from '../utils/errors.js';
 
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
-const csrfExemptPaths = new Set(['/auth/register', '/auth/login', '/auth/verify-email', '/auth/forgot-password', '/auth/reset-password']);
+const csrfExemptPaths = new Set(['/auth/register', '/auth/login', '/auth/forgot-password', '/auth/reset-password']);
 
 export function csrfCookie(req, res, next) {
   const token = req.cookies?.[cookieNames().csrf] || crypto.randomBytes(24).toString('hex');

@@ -4,6 +4,7 @@ import { Review } from '../models/Review.js';
 import { Favorite } from '../models/Favorite.js';
 import { Wishlist } from '../models/Wishlist.js';
 import { ReviewVote } from '../models/ReviewVote.js';
+import { GAME_GENRES } from '../constants/gameGenres.js';
 import { AppError, asyncHandler } from '../utils/errors.js';
 import { escapeRegex } from '../utils/security.js';
 import { paginated, success } from '../utils/response.js';
@@ -21,7 +22,7 @@ const gameInputBaseSchema = z.object({
     publicId: z.string().min(1).max(255)
   })).max(12).optional(),
   description: z.string().trim().min(1).max(10000),
-  genres: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  genres: z.array(z.enum(GAME_GENRES)).max(GAME_GENRES.length).optional(),
   platforms: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
   releaseDate: z.coerce.date().optional(),
   releaseYear: z.coerce.number().int().min(1950).max(2100).optional(),
@@ -61,7 +62,7 @@ function gameImages(game) {
 function parseListQuery(query) {
   return parse(z.object({
     search: z.string().trim().max(100).optional(),
-    genre: z.string().trim().max(40).optional(),
+    genre: z.enum(GAME_GENRES).optional(),
     platform: z.string().trim().max(60).optional(),
     minRating: z.coerce.number().min(0).max(10).optional(),
     releaseYear: z.coerce.number().int().min(1950).max(2100).optional(),

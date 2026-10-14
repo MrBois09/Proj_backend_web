@@ -14,19 +14,20 @@ import { parse } from '../validators/common.js';
 
 const emailSchema = z.string().trim().email().max(254).transform((value) => value.toLowerCase());
 const usernameSchema = z.string().trim().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/).transform((value) => value.toLowerCase());
-const passwordSchema = z.string().min(10).max(128)
-  .regex(/[a-z]/, 'Must include a lowercase letter')
-  .regex(/[A-Z]/, 'Must include an uppercase letter')
-  .regex(/\d/, 'Must include a number')
-  .regex(/[^a-zA-Z0-9]/, 'Must include a symbol');
+const passwordSchema = z.string().min(8).max(128);
 
-const registerSchema = z.object({
+const registerSchema = z.preprocess((value) => {
+  if (value && typeof value === 'object' && !Array.isArray(value) && !value.displayName && typeof value.name === 'string') {
+    return { ...value, displayName: value.name };
+  }
+  return value;
+}, z.object({
   displayName: z.string().trim().min(1).max(80),
-  username: usernameSchema,
+  username: usernameSchema.optional(),
   email: emailSchema,
   password: passwordSchema,
   confirmPassword: z.string().optional()
-}).refine((value) => !value.confirmPassword || value.password === value.confirmPassword, {
+})).refine((value) => !value.confirmPassword || value.password === value.confirmPassword, {
   path: ['confirmPassword'],
   message: 'Passwords do not match'
 });
@@ -97,94 +98,31 @@ function publicUser(user) {
     avatarUrl: user.avatarUrl,
     bio: user.bio,
     favoriteTags: user.favoriteTags,
-    emailVerified: user.emailVerified,
     createdAt: user.createdAt
   };
 }
 
 export const register = asyncHandler(async (req, res) => {
   const input = parse(registerSchema, req.body);
-  const token = createToken();
+  let username = input.username;
+  if (!username) {
+    const localPart = input.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const base = (localPart.length >= 3 ? localPart : `${localPart}player`).slice(0, 30);
+    username = base;
+    let suffix = 1;
+    while (await User.exists({ username })) {
+      const suffixText = `_${suffix++}`;
+      username = `${base.slice(0, 30 - suffixText.length)}${suffixText}`;
+    }
+  }
   const passwordHash = await bcrypt.hash(input.password, 12);
   const user = await User.create({
     displayName: input.displayName,
-    username: input.username,
+    username,
     email: input.email,
-    passwordHash,
-    emailVerificationTokenHash: hashToken(token),
-    emailVerificationExpiresAt: expirationDate(process.env.EMAIL_VERIFICATION_TOKEN_EXPIRES_MINUTES || 30)
+    passwordHash
   });
-  try {
-    await sendTokenEmail({
-      email: user.email,
-      token,
-      template: 'verify-email.html',
-      pathVariable: 'FRONTEND_VERIFY_EMAIL_PATH',
-      fallbackPath: '/verify-email',
-      subject: 'Verify your Gamer Review account',
-      text: 'Verify your account using this link:'
-    });
-    user.emailVerificationSentAt = new Date();
-    try {
-      await user.save();
-    } catch {
-      console.error('Verification email timestamp could not be stored');
-    }
-  } catch {
-    console.error('Verification email delivery failed');
-    throw new AppError('Account created, but verification email could not be sent. Please try resending it.', 503, 'EMAIL_DELIVERY_FAILED');
-  }
-  return success(res, { user: publicUser(user) }, 'Account created. Check your email to verify your account.', 201);
-});
-
-export const verifyEmail = asyncHandler(async (req, res) => {
-  const { token } = parse(z.object({ token: z.string().min(32).max(256) }), req.body);
-  const user = await User.findOne({
-    emailVerificationTokenHash: hashToken(token),
-    emailVerificationExpiresAt: { $gt: new Date() },
-    emailVerified: false
-  }).select('+emailVerificationTokenHash +emailVerificationExpiresAt');
-  if (!user) throw new AppError('Verification link is invalid, expired, or already used', 400);
-  user.emailVerified = true;
-  user.emailVerificationTokenHash = undefined;
-  user.emailVerificationExpiresAt = undefined;
-  await user.save();
-  return success(res, null, 'Email verified successfully');
-});
-
-export const resendVerification = asyncHandler(async (req, res) => {
-  const { email } = parse(z.object({ email: emailSchema }), req.body);
-  const user = await User.findOne({ email })
-    .select('+emailVerificationTokenHash +emailVerificationExpiresAt +emailVerificationSentAt');
-  if (user && !user.emailVerified) {
-    if (user.emailVerificationSentAt && Date.now() - user.emailVerificationSentAt.getTime() < 60_000) {
-      return success(res, null, 'If the account needs verification, an email will be sent shortly');
-    }
-    const token = createToken();
-    user.emailVerificationTokenHash = hashToken(token);
-    user.emailVerificationExpiresAt = expirationDate(process.env.EMAIL_VERIFICATION_TOKEN_EXPIRES_MINUTES || 30);
-    await user.save();
-    try {
-      await sendTokenEmail({
-        email: user.email,
-        token,
-        template: 'verify-email.html',
-        pathVariable: 'FRONTEND_VERIFY_EMAIL_PATH',
-        fallbackPath: '/verify-email',
-        subject: 'Verify your Gamer Review account',
-        text: 'Verify your account using this link:'
-      });
-      user.emailVerificationSentAt = new Date();
-      try {
-        await user.save();
-      } catch {
-        console.error('Verification email timestamp could not be stored');
-      }
-    } catch {
-      console.error('Verification email delivery failed');
-    }
-  }
-  return success(res, null, 'If the account needs verification, an email will be sent shortly');
+  return success(res, { user: publicUser(user) }, 'Account created successfully', 201);
 });
 
 export const login = asyncHandler(async (req, res) => {
@@ -216,7 +154,7 @@ export const refresh = asyncHandler(async (req, res) => {
     throw new AppError('Refresh session is invalid or expired', 401);
   }
   const user = await User.findById(payload.sub)
-    .select('emailVerified displayName username email avatarUrl bio favoriteTags createdAt +sessionVersion');
+    .select('displayName username email avatarUrl bio favoriteTags createdAt +sessionVersion');
   if (!user) throw new AppError('Refresh session is invalid or expired', 401);
   const expiresAt = new Date(Date.now() + durationMilliseconds(process.env.REFRESH_TOKEN_EXPIRES_IN, '7d'));
   const rotatedToken = jwt.sign(
