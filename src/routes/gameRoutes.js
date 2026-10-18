@@ -27,7 +27,7 @@ router.get('/trending', trendingGames);
 router.get('/top-rated', topRatedGames);
 router.get('/new-releases', newReleases);
 router.post('/', requireAuth, createGame);
-router.patch('/:id', requireAuth, requireAdmin, updateGame);
+router.patch('/:id', requireAuth, updateGame);
 router.delete('/:id', requireAuth, requireAdmin, deleteGame);
 router.get('/:idOrSlug', getGame);
 

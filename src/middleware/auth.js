@@ -60,8 +60,12 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
   next();
 });
 
-export function requireAdmin(req, _res, next) {
+export function isAdmin(user) {
   const admins = (process.env.ADMIN_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean);
-  if (!req.user || !admins.includes(req.user.email)) return next(new AppError('Administrator access required', 403));
+  return Boolean(user?.email && admins.includes(user.email.toLowerCase()));
+}
+
+export function requireAdmin(req, _res, next) {
+  if (!isAdmin(req.user)) return next(new AppError('Administrator access required', 403));
   return next();
 }

@@ -11,6 +11,7 @@ import { escapeRegex } from '../utils/security.js';
 import { paginated, success } from '../utils/response.js';
 import { cloudinaryImageUrl, parse } from '../validators/common.js';
 import { claimUploadedAssets, releaseUploadedAssets } from '../utils/assets.js';
+import { isAdmin } from '../middleware/auth.js';
 
 const gameInputBaseSchema = z.object({
   title: z.string().trim().min(1).max(120),
@@ -209,6 +210,8 @@ export const updateGame = asyncHandler(async (req, res) => {
   await validateCatalogValues(input);
   const existing = await Game.findById(req.params.id);
   if (!existing) throw new AppError('Game not found', 404);
+  const isOwner = existing.submittedBy && existing.submittedBy.toString() === req.user.id;
+  if (!isAdmin(req.user) && !isOwner) throw new AppError('You can only edit games you submitted', 403);
   if (input.title && input.title.toLowerCase() !== existing.title.toLowerCase()) {
     if (await Game.exists({ _id: { $ne: existing.id }, title: { $regex: `^${escapeRegex(input.title)}$`, $options: 'i' } })) {
       throw new AppError('A game with this title already exists', 409);
