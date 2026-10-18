@@ -6,6 +6,7 @@ import {
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import { GamePlatform } from '../models/GamePlatform.js';
 import { GameTag } from '../models/GameTag.js';
+import { PopularTag } from '../models/PopularTag.js';
 import { asyncHandler } from '../utils/errors.js';
 import { success } from '../utils/response.js';
 
@@ -20,6 +21,7 @@ const getGameTags = getCatalogNames(GameTag, 'Game tags retrieved');
 router.get('/tags', getGameTags);
 router.get('/genres', getGameTags);
 router.get('/platforms', getCatalogNames(GamePlatform, 'Game platforms retrieved'));
+router.get('/popular-tags', getCatalogNames(PopularTag, 'Popular tags retrieved'));
 router.get('/featured', featuredGames);
 router.get('/trending', trendingGames);
 router.get('/top-rated', topRatedGames);

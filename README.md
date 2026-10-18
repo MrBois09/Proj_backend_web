@@ -171,10 +171,11 @@ Register accepts `displayName`, `username`, `email`, `password`, and optional `c
 | GET | `/games/genres` | Public; returns the fixed game genre list |
 | GET | `/games/tags` | Public; returns game tags/genres stored in MongoDB |
 | GET | `/games/platforms` | Public; returns the fixed game platform list |
+| GET | `/games/popular-tags` | Public; returns popular tags stored in MongoDB |
 | PATCH | `/games/:id` | Administrator |
 | DELETE | `/games/:id` | Administrator |
 
-`GET /games` supports `search`, `genre`, `platform`, `minRating`, `releaseYear`, `communityAdded`, `sort`, `page`, and `limit`. Sort values are `popular`, `highestRated`, `mostReviewed`, `newestReleases`, `recentlyAdded`, and `alphabetical`. Supported game tags and platforms are stored in `gametags` and `gameplatforms` collections. The default tag and platform entries are inserted idempotently at the first successful database connection; game submissions are validated against the current MongoDB catalog values. Authenticated users' new game submissions are published immediately and may receive reviews without administrator approval.
+`GET /games` supports `search`, `genre`, `platform`, `minRating`, `releaseYear`, `communityAdded`, `sort`, `page`, and `limit`. Sort values are `popular`, `highestRated`, `mostReviewed`, `newestReleases`, `recentlyAdded`, and `alphabetical`. Supported game tags, platforms, and popular tags are stored in `gametags`, `gameplatforms`, and `populartags` collections. The default tag, platform, and popular tag entries are inserted idempotently at the first successful database connection; game submissions are validated against the current MongoDB game-tag catalog values. Authenticated users' new game submissions are published immediately and may receive reviews without administrator approval.
 
 ### Reviews
 

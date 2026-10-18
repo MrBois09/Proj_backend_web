@@ -10,8 +10,10 @@ import { ReviewVote } from '../src/models/ReviewVote.js';
 import { Game } from '../src/models/Game.js';
 import { GamePlatform } from '../src/models/GamePlatform.js';
 import { GameTag } from '../src/models/GameTag.js';
+import { PopularTag } from '../src/models/PopularTag.js';
 import { GAME_GENRES } from '../src/constants/gameGenres.js';
 import { GAME_PLATFORMS } from '../src/constants/gamePlatforms.js';
+import { POPULAR_TAGS } from '../src/constants/popularTags.js';
 import { createToken, hashToken, isImageBuffer } from '../src/utils/security.js';
 
 describe('Gamer Review API security and health', () => {
@@ -45,6 +47,7 @@ describe('Gamer Review API security and health', () => {
     assert.ok(specResponse.body.paths['/games/genres'].get);
     assert.ok(specResponse.body.paths['/games/tags'].get);
     assert.ok(specResponse.body.paths['/games/platforms'].get);
+    assert.ok(specResponse.body.paths['/games/popular-tags'].get);
     assert.equal(specResponse.body.components.schemas.RegisterInput.required.includes('username'), false);
     assert.equal(JSON.stringify(specResponse.body).includes('MONGODB_URI'), false);
   });
@@ -170,13 +173,16 @@ describe('Security utilities', () => {
     assert.ok(voteIndex);
   });
 
-  it('stores game tag and platform catalogs in dedicated unique collections', async () => {
+  it('stores game tag, platform, and popular tag catalogs in dedicated unique collections', async () => {
     assert.deepEqual(GAME_GENRES, ['Action', 'RPG', 'Adventure', 'FPS', 'Strategy', 'Horror', 'Indie']);
     assert.deepEqual(GAME_PLATFORMS, ['PC', 'Console', 'Smartphone']);
+    assert.deepEqual(POPULAR_TAGS, ['Gameplay', 'Story', 'Graphics', 'Performance', 'Multiplayer']);
     assert.equal(GameTag.collection.collectionName, 'gametags');
     assert.equal(GamePlatform.collection.collectionName, 'gameplatforms');
+    assert.equal(PopularTag.collection.collectionName, 'populartags');
     assert.ok(GameTag.schema.path('name').options.unique);
     assert.ok(GamePlatform.schema.path('name').options.unique);
+    assert.ok(PopularTag.schema.path('name').options.unique);
     assert.equal(Game.schema.path('genres').caster.enumValues.length, 0);
     assert.equal(Game.schema.path('platforms').caster.enumValues.length, 0);
     const publishedGame = new Game({ title: 'Published game', slug: 'published-game', description: 'A published game' });

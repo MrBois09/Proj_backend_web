@@ -240,6 +240,13 @@ export const openapiSpec = {
         responses: { 200: successResponse }
       }
     },
+    '/games/popular-tags': {
+      get: {
+        summary: 'List the popular tags',
+        tags: ['Games'],
+        responses: { 200: successResponse }
+      }
+    },
     '/auth/logout': {
       post: csrfOperation({
         summary: 'Sign out and clear authentication cookies',
