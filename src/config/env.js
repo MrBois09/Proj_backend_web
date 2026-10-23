@@ -6,10 +6,6 @@ const requiredInProduction = [
   'CLOUDINARY_CLOUD_NAME',
   'CLOUDINARY_API_KEY',
   'CLOUDINARY_API_SECRET',
-  'SMTP_HOST',
-  'SMTP_USER',
-  'SMTP_PASS',
-  'SMTP_FROM_EMAIL'
 ];
 
 export function validateEnvironment() {
